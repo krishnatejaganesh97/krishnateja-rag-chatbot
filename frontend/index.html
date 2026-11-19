@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teja RAG Chatbot — Ask about Teja's work</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+  header { background: linear-gradient(90deg, #2563eb, #f97316); padding: 20px; }
+  header h1 { margin: 0; font-size: 1.4rem; }
+  header p { margin: 4px 0 0; opacity: .9; font-size: .9rem; }
+  main { max-width: 760px; margin: 0 auto; padding: 20px; }
+  #status { font-size: .85rem; color: #94a3b8; margin-bottom: 12px; }
+  #chat { display: flex; flex-direction: column; gap: 12px; min-height: 300px; }
+  .msg { padding: 12px 14px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; }
+  .user { background: #2563eb; align-self: flex-end; max-width: 85%; }
+  .bot { background: #1e293b; align-self: flex-start; max-width: 95%; }
+  .sources { margin-top: 8px; font-size: .8rem; color: #93c5fd; }
+  .sources details { margin-top: 4px; }
+  .sources summary { cursor: pointer; }
+  .sources p { color: #cbd5e1; background: #0f172a; padding: 8px; border-radius: 8px; }
+  form { display: flex; gap: 8px; margin-top: 16px; }
+  input[type=text] { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: #1e293b; color: #fff; }
+  button { padding: 12px 18px; border-radius: 10px; border: none; background: #f97316; color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 6px 10px; border-radius: 999px; font-size: .8rem; cursor: pointer; }
+  .upload { margin-top: 20px; font-size: .85rem; color: #94a3b8; }
+  .upload input { margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Teja RAG Chatbot</h1>
+  <p>Ask about Teja's PhD, Technobot, or Elite Tech work — every answer cites its source document.</p>
+</header>
+<main>
+  <div id="status">Loading…</div>
+  <div id="chat"></div>
+  <div class="chips" id="chips"></div>
+  <form id="form">
+    <input type="text" id="q" placeholder="Ask a question, e.g. What AI work did Teja do at Technobot?" autocomplete="off">
+    <button id="send" type="submit">Ask</button>
+  </form>
+  <div class="upload">
+    <label><strong>Upload a document (.txt / .md)</strong> — it will be chunked and indexed, then you can ask about it.</label><br>
+    <input type="file" id="file" accept=".txt,.md">
+    <span id="uploadMsg"></span>
+  </div>
+</main>
+<script>
+const chat = document.getElementById('chat');
+const statusEl = document.getElementById('status');
+const SAMPLE_QUESTIONS = [
+  "Where does Teja study for his PhD?",
+  "What AI work did Teja do at Technobot?",
+  "What did Teja build at Elite Tech Info?",
+  "What programming languages does Teja use?",
+  "How many years of experience does Teja have?"
+];
+SAMPLE_QUESTIONS.forEach(q => {
+  const b = document.createElement('button');
+  b.className = 'chip'; b.textContent = q;
+  b.onclick = () => { document.getElementById('q').value = q; ask(q); };
+  document.getElementById('chips').appendChild(b);
+});
+
+async function loadStatus() {
+  try {
+    const r = await fetch('/health');
+    const h = await r.json();
+    statusEl.textContent = `Mode: ${h.mode} (${h.mode === 'mock' ? 'demo — no API key needed' : 'live LLM'}) · Vector store: ${h.vector_store} · ${h.chunks_indexed} chunks indexed · Docs: ${h.docs.join(', ')}`;
+  } catch (e) { statusEl.textContent = 'Backend not reachable — is it running on port 8000?'; }
+}
+loadStatus();
+
+function addMsg(text, cls, sources) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + cls;
+  div.textContent = text;
+  if (sources && sources.length) {
+    const s = document.createElement('div');
+    s.className = 'sources';
+    s.innerHTML = '<strong>Sources:</strong> ' + sources.map(x => x.source).join(', ');
+    sources.forEach(x => {
+      const d = document.createElement('details');
+      d.innerHTML = `<summary>${x.source}</summary><p>${x.text}</p>`;
+      s.appendChild(d);
+    });
+    div.appendChild(s);
+  }
+  chat.appendChild(div);
+  div.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function ask(question) {
+  if (!question.trim()) return;
+  addMsg(question, 'user');
+  document.getElementById('send').disabled = true;
+  try {
+    const r = await fetch('/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+    const data = await r.json();
+    addMsg(data.answer + `\n\n(mode: ${data.mode} / ${data.model})`, 'bot', data.sources);
+  } catch (e) {
+    addMsg('Error: could not reach the backend. Is it running?', 'bot');
+  }
+  document.getElementById('send').disabled = false;
+}
+
+document.getElementById('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = document.getElementById('q');
+  ask(q.value); q.value = '';
+});
+
+document.getElementById('file').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const fd = new FormData(); fd.append('file', f);
+  const r = await fetch('/upload', { method: 'POST', body: fd });
+  const data = await r.json();
+  document.getElementById('uploadMsg').textContent =
+    r.ok ? ` Indexed ${data.filename}: ${data.chunks_added} chunks added.` : ` Error: ${data.detail || 'upload failed'}`;
+  loadStatus();
+});
+</script>
+</body>
+</html>
