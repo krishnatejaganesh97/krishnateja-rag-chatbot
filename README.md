@@ -15,6 +15,14 @@ All three projects are kept open source.
 > embedding + extractive answering. Add an OpenAI or Azure OpenAI key and the
 > same code calls a real LLM instead — no code change needed.
 
+## Demo
+
+Screenshot of the working app (mock mode, no API key) — asked "What AI work
+did Teja do at Technobot?" and the answer cites `technobot.md` and
+`about-teja.md`:
+
+![RAG chatbot answering a question about Technobot, with citations](docs/screenshot-chat.png)
+
 ## Folder structure
 
 ```
