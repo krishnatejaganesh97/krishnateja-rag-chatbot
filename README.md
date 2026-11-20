@@ -23,6 +23,19 @@ did Teja do at Technobot?" and the answer cites `technobot.md` and
 
 ![RAG chatbot answering a question about Technobot, with citations](docs/screenshot-chat.png)
 
+## Live demo
+
+Deploy this repo on Render as a free web service (the `render.yaml` at the
+repo root already defines it — no code change needed):
+
+**https://krishnateja-rag-chatbot.onrender.com**
+
+Runs in mock mode with no API key. Note: the free tier sleeps after
+15 minutes of inactivity, so the first load after a pause can take
+30–60 seconds while the service wakes up. Uploaded documents are kept
+only in memory/ephemeral storage on the free tier, so they do not
+survive a restart.
+
 ## Folder structure
 
 ```
