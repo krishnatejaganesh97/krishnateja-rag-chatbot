@@ -6,48 +6,54 @@
 <title>Teja RAG Chatbot — Ask about Teja's work</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
-  header { background: linear-gradient(90deg, #2563eb, #f97316); padding: 20px; }
-  header h1 { margin: 0; font-size: 1.4rem; }
-  header p { margin: 4px 0 0; opacity: .9; font-size: .9rem; }
-  main { max-width: 760px; margin: 0 auto; padding: 20px; }
-  #status { font-size: .85rem; color: #94a3b8; margin-bottom: 12px; }
-  #chat { display: flex; flex-direction: column; gap: 12px; min-height: 300px; }
-  .msg { padding: 12px 14px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; }
-  .user { background: #2563eb; align-self: flex-end; max-width: 85%; }
-  .bot { background: #1e293b; align-self: flex-start; max-width: 95%; }
-  .sources { margin-top: 8px; font-size: .8rem; color: #93c5fd; }
-  .sources details { margin-top: 4px; }
-  .sources summary { cursor: pointer; }
-  .sources p { color: #cbd5e1; background: #0f172a; padding: 8px; border-radius: 8px; }
-  form { display: flex; gap: 8px; margin-top: 16px; }
-  input[type=text] { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: #1e293b; color: #fff; }
-  button { padding: 12px 18px; border-radius: 10px; border: none; background: #f97316; color: #fff; font-weight: 600; cursor: pointer; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
+  header { background: #ffffff; border-bottom: 3px solid #2563eb; padding: 22px 20px; }
+  header h1 { margin: 0; font-size: 1.5rem; color: #1e40af; }
+  header h1 span { color: #2563eb; }
+  header p { margin: 6px 0 0; color: #475569; font-size: .92rem; }
+  main { max-width: 780px; margin: 0 auto; padding: 20px; }
+  #status { font-size: .85rem; color: #64748b; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; }
+  .upload { background: #ffffff; border: 2px dashed #93c5fd; border-radius: 14px; padding: 16px; margin-bottom: 18px; font-size: .9rem; color: #334155; }
+  .upload strong { color: #1e40af; }
+  .upload input { margin-top: 8px; }
+  #uploadMsg { color: #15803d; font-weight: 600; }
+  #chat { display: flex; flex-direction: column; gap: 12px; min-height: 260px; }
+  .msg { padding: 13px 16px; border-radius: 16px; line-height: 1.55; white-space: pre-wrap; box-shadow: 0 1px 3px rgba(15,23,42,.08); }
+  .user { background: #2563eb; color: #fff; align-self: flex-end; max-width: 85%; border-bottom-right-radius: 4px; }
+  .bot { background: #ffffff; border: 1px solid #e2e8f0; align-self: flex-start; max-width: 95%; border-bottom-left-radius: 4px; }
+  .sources { margin-top: 10px; font-size: .82rem; color: #1e40af; }
+  .sources details { margin-top: 6px; }
+  .sources summary { cursor: pointer; font-weight: 600; }
+  .sources p { color: #334155; background: #eff6ff; border-left: 3px solid #2563eb; padding: 9px 10px; border-radius: 0 8px 8px 0; }
+  form { display: flex; gap: 8px; margin-top: 16px; position: sticky; bottom: 12px; background: #f8fafc; padding: 4px 0; }
+  input[type=text] { flex: 1; padding: 13px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff; color: #0f172a; font-size: 1rem; }
+  input[type=text]:focus { outline: 2px solid #2563eb; border-color: #2563eb; }
+  button { padding: 13px 22px; border-radius: 999px; border: none; background: #2563eb; color: #fff; font-weight: 700; cursor: pointer; }
+  button:hover { background: #1d4ed8; }
   button:disabled { opacity: .5; cursor: wait; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .chip { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 6px 10px; border-radius: 999px; font-size: .8rem; cursor: pointer; }
-  .upload { margin-top: 20px; font-size: .85rem; color: #94a3b8; }
-  .upload input { margin-top: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip { background: #fff; border: 1px solid #bfdbfe; color: #1e40af; padding: 7px 12px; border-radius: 999px; font-size: .82rem; cursor: pointer; }
+  .chip:hover { background: #eff6ff; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Teja RAG Chatbot</h1>
+  <h1>Krishnateja <span>RAG Doc Chatbot</span></h1>
   <p>Ask about Teja's PhD, Technobot, or Elite Tech work — every answer cites its source document.</p>
 </header>
 <main>
   <div id="status">Loading…</div>
+  <div class="upload">
+    <label><strong>Upload a document (.txt / .md)</strong> — it will be chunked and indexed, then you can ask about it.</label><br>
+    <input type="file" id="file" accept=".txt,.md">
+    <span id="uploadMsg"></span>
+  </div>
   <div id="chat"></div>
   <div class="chips" id="chips"></div>
   <form id="form">
     <input type="text" id="q" placeholder="Ask a question, e.g. What AI work did Teja do at Technobot?" autocomplete="off">
     <button id="send" type="submit">Ask</button>
   </form>
-  <div class="upload">
-    <label><strong>Upload a document (.txt / .md)</strong> — it will be chunked and indexed, then you can ask about it.</label><br>
-    <input type="file" id="file" accept=".txt,.md">
-    <span id="uploadMsg"></span>
-  </div>
 </main>
 <script>
 const chat = document.getElementById('chat');
