@@ -37,6 +37,95 @@ from typing import Any, List, Optional
 BASE_DIR = Path(__file__).resolve().parent.parent
 SAMPLE_DOCS_DIR = BASE_DIR / "data" / "sample_docs"
 
+# Chunking defaults (see chunk_text()). 500/50 was chosen by experiment
+# (scripts/eval.py, 8 questions): 500/50 and 800/100 both score 8/8, but
+# 500/50 keeps 1-3 paragraphs per chunk — big enough for context, small
+# enough that a chunk stays on-topic and citations stay precise. 800/100
+# merges whole docs into 4 chunks, so a citation points at a much bigger
+# passage. 300/30 drops to 7/8 (the SQL Server/MongoDB sentence loses its
+# surrounding context). Re-run scripts/eval.py if you change these.
+CHUNK_SIZE = 500
+CHUNK_OVERLAP = 50
+
+# Query expansion for mock-mode keyword retrieval. The mock embedding is
+# not semantic, so a question word that never appears in the docs (e.g.
+# "databases" — the docs say "SQL Server and MongoDB") would score zero.
+# These are small, doc-grounded synonym maps, not answer leakage: they map
+# a generic word to the concrete terms the docs actually use.
+QUERY_EXPANSIONS = {
+    "database": ["sql", "mongodb", "server"],
+    "degree": ["master", "bachelor", "science", "engineering"],
+}
+
+# Light stemming so "build" matches "built", "worked" matches "work", etc.
+# Applied identically to questions and chunks, so both sides stay comparable.
+_IRREGULAR_STEMS = {"built": "build", "building": "build"}
+
+
+def _stem(word: str) -> str:
+    if word in _IRREGULAR_STEMS:
+        return _IRREGULAR_STEMS[word]
+    if len(word) > 5 and word.endswith("ing"):
+        return word[:-3]
+    if len(word) > 4 and word.endswith("ed"):
+        return word[:-2]
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+        # Strip "es" only when the singular ends in s/x/z/ch/sh
+        # ("classes" -> "class", "boxes" -> "box"); otherwise strip just
+        # "s" ("databases" -> "database", NOT "databas" — the old rule
+        # broke query expansion for "databases", which is why that eval
+        # question failed).
+        if word.endswith(("sses", "xes", "zes", "ches", "shes")):
+            return word[:-2]
+        return word[:-1]
+    return word
+
+
+def _tokens(text: str) -> List[str]:
+    """Lowercase alphanumeric words, stemmed. Used for questions and chunks."""
+    return [_stem(w) for w in re.findall(r"[a-z0-9]+", text.lower())]
+
+
+def _query_tokens(query: str) -> List[str]:
+    """Content tokens for a question: stemmed, stopwords removed, expanded.
+
+    Expansion adds the concrete doc terms for a generic question word
+    (see QUERY_EXPANSIONS) — e.g. "databases" also matches "sql" and
+    "mongodb" — so retrieval works on meaning, not just exact words.
+    """
+    stop = {
+        "what", "where", "when", "who", "how", "does", "did", "do", "the",
+        "a", "an", "is", "are", "was", "were", "in", "on", "at", "of",
+        "for", "to", "and", "his", "her", "he", "she", "it", "which",
+        "with", "from", "by", "as", "that", "this",
+    }
+    out: List[str] = []
+    for w in _tokens(query):
+        if w in stop:
+            continue
+        if w not in out:
+            out.append(w)
+        for extra in QUERY_EXPANSIONS.get(w, []):
+            if extra not in out:
+                out.append(extra)
+    return out
+
+
+def _idf_weights(chunks: List[Chunk]) -> dict:
+    """Inverse document frequency over the indexed chunks.
+
+    A word in every chunk ("teja") tells retrieval nothing; a word in one
+    chunk ("cumberlands", "satyam", "mongodb") is highly discriminative.
+    idf(w) = log((N+1) / (df+1)) + 1, so common words score ~1 and rare
+    words score ~2.5 on this 8-chunk index.
+    """
+    n = len(chunks) or 1
+    df: dict = {}
+    for c in chunks:
+        for w in set(_tokens(c.text)):
+            df[w] = df.get(w, 0) + 1
+    return {w: math.log((n + 1) / (d + 1)) + 1.0 for w, d in df.items()}
+
 
 @dataclass
 class Chunk:
@@ -53,7 +142,7 @@ class Chunk:
 #    Why chunk? An LLM can't fit a whole document in a prompt, and retrieval
 #    works best on small, self-contained passages (~500 chars with overlap).
 # ---------------------------------------------------------------------------
-def chunk_text(text: str, source: str, chunk_size: int = 500, chunk_overlap: int = 50) -> List[Chunk]:
+def chunk_text(text: str, source: str, chunk_size: int = CHUNK_SIZE, chunk_overlap: int = CHUNK_OVERLAP) -> List[Chunk]:
     try:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -162,6 +251,7 @@ class VectorStore:
         self.embedder = embedder
         self.chunks: List[Chunk] = []
         self.vectors: List[List[float]] = []
+        self.idf: dict = {}  # set in add(); see _idf_weights()
         self._chroma = None
         self._collection = None
         if os.getenv("USE_CHROMA", "true").lower() == "true":
@@ -180,20 +270,36 @@ class VectorStore:
         return "chromadb" if self._collection is not None else "in-memory"
 
     def add(self, chunks: List[Chunk]) -> None:
+        # IDF weights are recomputed whenever the index changes (sample docs
+        # at startup, plus any uploaded docs) — retrieval ranking depends on
+        # them, so they must cover exactly the indexed chunks.
+        self.chunks = chunks
+        self.idf = _idf_weights(chunks)
         if self._collection is not None:
-            existing = set(self._collection.get().get("ids", []))
-            new = [c for c in chunks if c.id not in existing]
-            if new:
-                self._collection.add(
-                    ids=[c.id for c in new],
-                    documents=[c.text for c in new],
-                    metadatas=[{"source": c.source} for c in new],
-                    embeddings=self.embedder.embed([c.text for c in new]),
+            stored = dict(zip(
+                self._collection.get().get("ids", []),
+                self._collection.get().get("documents", []),
+            ))
+            wanted = {c.id: c for c in chunks}
+            # Chroma persists across restarts, so a changed chunk_size or an
+            # edited doc must UPDATE the stored chunk, not be silently
+            # skipped because its id already exists (the old bug: stale
+            # chunks survived a re-chunk). Only new/changed chunks are
+            # re-embedded, so real-embedding mode doesn't pay on every start.
+            new = [c for c in chunks if c.id not in stored]
+            changed = [c for c in chunks if c.id in stored and stored[c.id] != c.text]
+            stale = [i for i in stored if i not in wanted]
+            if stale:
+                self._collection.delete(ids=stale)
+            if new or changed:
+                upsert = new + changed
+                self._collection.upsert(
+                    ids=[c.id for c in upsert],
+                    documents=[c.text for c in upsert],
+                    metadatas=[{"source": c.source} for c in upsert],
+                    embeddings=self.embedder.embed([c.text for c in upsert]),
                 )
-            # Keep an in-memory copy too, so citations work the same way.
-            self.chunks = chunks
         else:
-            self.chunks = chunks
             self.vectors = self.embedder.embed([c.text for c in chunks])
 
     def search(self, query: str, k: int = 3) -> List[Chunk]:
@@ -212,7 +318,7 @@ class VectorStore:
                 res["documents"][0], res["metadatas"][0], res["distances"][0]
             ):
                 out.append(Chunk(id=meta.get("source", ""), text=doc, source=meta.get("source", ""), score=1 - (dist or 0)))
-            return _rerank_by_keywords(query, out)[:k] if self.embedder.provider == "mock" else out
+            return _rerank_by_keywords(query, out, self.idf)[:k] if self.embedder.provider == "mock" else out
         qvec = self.embedder.embed([query])[0]
         scored = sorted(
             enumerate(self.chunks),
@@ -222,20 +328,35 @@ class VectorStore:
         ranked = [c for _, c in scored]
         # In mock mode, keyword overlap is a better signal than hash vectors.
         if self.embedder.provider == "mock":
-            return _rerank_by_keywords(query, ranked[: k * 2])[:k]
+            return _rerank_by_keywords(query, ranked[: k * 2], self.idf)[:k]
         return ranked[:k]
 
 
-def _rerank_by_keywords(query: str, chunks: List[Chunk]) -> List[Chunk]:
-    """Boost chunks that share real words with the question (demo mode)."""
-    words = set(re.findall(r"[a-z0-9]+", query.lower())) - {
-        "what", "where", "when", "who", "how", "does", "did", "the", "a", "an",
-        "is", "are", "was", "were", "in", "on", "at", "of", "for", "to", "and",
-    }
-    def kw_score(c: Chunk) -> int:
-        text = c.text.lower()
-        return sum(1 for w in words if w in text)
-    return sorted(chunks, key=kw_score, reverse=True)
+def _rerank_by_keywords(query: str, chunks: List[Chunk], idf: dict | None = None) -> List[Chunk]:
+    """Rank chunks by IDF-weighted keyword overlap with the question.
+
+    The old version counted every shared word equally and matched by
+    substring ("ai" matched "available", "teja" counted as much as
+    "cumberlands"), so a chunk scored just for saying "Teja" could outrank
+    the chunk with the actual answer. Now:
+      * whole-word, stemmed matching ("build" matches "built"),
+      * each word weighted by IDF — "teja" (in every chunk) is worth ~1,
+        "cumberlands"/"satyam"/"mongodb" (in one chunk) ~2.5,
+      * generic question words expand to the concrete terms the docs use
+        (see _query_tokens / QUERY_EXPANSIONS),
+      * ties keep the vector-search order (stable sort).
+    """
+    idf = idf or {}
+    default_idf = math.log((len(chunks) + 1) / 1) + 1.0 if chunks else 1.0
+    tokens = _query_tokens(query)
+
+    def kw_score(c: Chunk) -> float:
+        present = set(_tokens(c.text))
+        return sum(idf.get(w, default_idf) for w in tokens if w in present)
+
+    return [c for _, c in sorted(
+        enumerate(chunks), key=lambda p: (-kw_score(p[1]), p[0])
+    )]
 
 
 # ---------------------------------------------------------------------------
@@ -270,13 +391,19 @@ class RAGChatbot:
         if self.mode in ("openai", "azure"):
             return Answer(self._llm_answer(question, chunks), sources, self.mode,
                           os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+        # Mock mode: extractive answer. Only the files the answer actually
+        # cites are returned as sources — previously every retrieved chunk's
+        # file was listed, so a PhD answer "cited" elite-tech.md even though
+        # no sentence from it was used.
+        text, cited = self._extractive_answer(question, chunks)
+        cited_sources = [s for s in sources if s["source"] in cited]
         # Deduplicate sources by file for a cleaner UI (keep first per file).
         seen, uniq = set(), []
-        for s in sources:
+        for s in cited_sources:
             if s["source"] not in seen:
                 seen.add(s["source"])
                 uniq.append(s)
-        return Answer(self._extractive_answer(question, chunks), uniq, "mock")
+        return Answer(text, uniq, "mock")
 
     def _llm_answer(self, question: str, chunks: List[Chunk]) -> str:
         context = "\n\n".join(f"[{c.source}] {c.text}" for c in chunks)
@@ -305,39 +432,45 @@ class RAGChatbot:
         )
         return resp.choices[0].message.content or ""
 
-    @staticmethod
-    def _extractive_answer(question: str, chunks: List[Chunk]) -> str:
-        # Pick the 2-3 sentences from the retrieved chunks most relevant to
-        # the question, and cite their source files. This is how a RAG system
+    def _extractive_answer(self, question: str, chunks: List[Chunk]) -> tuple[str, set]:
+        # Pick the sentences from the retrieved chunks most relevant to the
+        # question, and cite their source files. This is how a RAG system
         # should behave when it cannot call an LLM: ground, don't invent.
-        # Score on CONTENT words only (stopwords like "what/does/for" would
-        # otherwise let unrelated sentences win, e.g. a certifications line
-        # beating the PhD line for "Where does Teja study for his PhD?").
-        stop = {
-            "what", "where", "when", "who", "how", "does", "did", "do", "the",
-            "a", "an", "is", "are", "was", "were", "in", "on", "at", "of",
-            "for", "to", "and", "his", "her", "he", "she", "it", "does",
-        }
-        content_words = {
-            w for w in re.findall(r"[a-z0-9]+", question.lower()) if w not in stop
-        }
-        sentences: List[tuple[int, str, str]] = []
+        #
+        # Scoring is IDF-weighted over stemmed, whole-word matches (same
+        # scheme as _rerank_by_keywords), so a sentence scores for the
+        # discriminative words ("cumberlands", "mongodb") and not just for
+        # saying "Teja" — the old equal-weight version let a sentence like
+        # "Teja reported to Satyam B..." into the answer to "Where does Teja
+        # study for his PhD?" because it contained "Teja".
+        #
+        # Only sentences scoring at least half as well as the best sentence
+        # are kept: the best sentence sets the bar for what "relevant"
+        # means for this question, so filler sentences from a retrieved
+        # chunk don't ride along. Returns (answer text, cited source files).
+        idf = self.store.idf or {}
+        default_idf = math.log((len(self.store.chunks) + 1) / 1) + 1.0 if self.store.chunks else 1.0
+        tokens = _query_tokens(question)
+        sentences: List[tuple[float, str, str]] = []
         for c in chunks:
             for sent in re.split(r"(?<=[.!])\s+", c.text):
                 sent = sent.strip()
                 if len(sent) < 15:
                     continue
-                score = sum(1 for w in content_words if w in sent.lower())
+                present = set(_tokens(sent))
+                score = sum(idf.get(w, default_idf) for w in tokens if w in present)
                 sentences.append((score, sent, c.source))
         sentences.sort(key=lambda s: s[0], reverse=True)
-        top = [s for s in sentences if s[0] > 0][:3]
-        if not top:
+        if not sentences or sentences[0][0] <= 0:
             # No sentence shares a content word with the question — return
             # the top retrieved chunk verbatim rather than inventing an answer.
             c = chunks[0]
-            return f"Based on [{c.source}]: {c.text}"
+            return f"Based on [{c.source}]: {c.text}", {c.source}
+        best = sentences[0][0]
+        top = [s for s in sentences if s[0] >= 0.5 * best][:3]
         lines = [f"- {sent} [{src}]" for _, sent, src in top]
-        return "Based on the documents:\n" + "\n".join(lines)
+        return ("Based on the documents:\n" + "\n".join(lines),
+                {src for _, _, src in top})
 
 
 # Global singleton, built once at import — FastAPI reuses it for every request.

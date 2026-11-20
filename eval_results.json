@@ -1,68 +1,191 @@
 {
   "mode": "mock",
-  "passed": 5,
-  "total": 5,
+  "vector_store": "chromadb",
+  "chunks_indexed": 8,
+  "chunk_size": 500,
+  "chunk_overlap": 50,
+  "passed": 8,
+  "total": 8,
+  "accuracy": 1.0,
+  "citation_correctness": 1.0,
   "results": [
     {
-      "question": "Where does Teja study for his PhD?",
-      "expected_keyword": "cumberlands",
-      "has_keyword": true,
-      "sources_returned": [
-        "about-teja.md",
-        "elite-tech.md"
+      "id": "phd-school",
+      "question": "Where does Krishnateja study for his PhD?",
+      "expected_answer": "University of the Cumberlands",
+      "expected_source": "about-teja.md",
+      "expected_keywords": [
+        "cumberlands"
       ],
-      "cites_source_in_text": true,
-      "pass": true,
-      "answer": "Based on the documents:\n- # About Teja\n\nKrishna Teja Ganesh is a full-time PhD researcher in Artificial Intelligence at the University of the Cumberlands. [about-teja.md]\n- His PhD is in Information Technology, with a specialization in Artificial Intelligence. [about-teja.md]\n- Teja reported to Satyam B at Elite Tech Info, and started on October 3, 2023. [elite-tech.md]"
-    },
-    {
-      "question": "What AI work did Teja do at Technobot?",
-      "expected_keyword": "langchain",
-      "has_keyword": true,
+      "keywords_found": [
+        "cumberlands"
+      ],
+      "keyword_accuracy": 1.0,
       "sources_returned": [
-        "technobot.md",
         "about-teja.md"
       ],
-      "cites_source_in_text": true,
+      "cites_expected_source_in_text": true,
+      "expected_source_returned": true,
+      "citation_correct": true,
       "pass": true,
-      "answer": "Based on the documents:\n- # Technobot LLC \u2014 AI Developer / Full Stack Developer\n\nTeja worked at Technobot LLC in Minnesota as an AI Developer and Full Stack Developer from May 2024 to April 2026. [technobot.md]\n- At Technobot, Teja built AI forecasting and vendor-selection features with OpenAI GPT and LangChain. [technobot.md]\n- His work at Technobot combined full-stack development with applied AI: React and .NET Core on the frontend and backend, OpenAI GPT and LangChain for the AI features, and Azure for cloud and identity. [technobot.md]"
+      "answer": "Based on the documents:\n- # About Krishnateja\n\nKrishnateja Ganesh is a full-time PhD researcher in Artificial Intelligence at the University of the Cumberlands. [about-teja.md]\n- His PhD is in Information Technology, with a specialization in Artificial Intelligence. [about-teja.md]"
     },
     {
-      "question": "What did Teja build at Elite Tech Info?",
-      "expected_keyword": "servicenow",
-      "has_keyword": true,
-      "sources_returned": [
-        "elite-tech.md",
-        "about-teja.md"
+      "id": "technobot-ai",
+      "question": "What AI work did Krishnateja do at Technobot?",
+      "expected_answer": "AI forecasting and vendor-selection features with OpenAI GPT and LangChain",
+      "expected_source": "technobot.md",
+      "expected_keywords": [
+        "langchain",
+        "forecasting"
       ],
-      "cites_source_in_text": true,
-      "pass": true,
-      "answer": "Based on the documents:\n- Teja reported to Satyam B at Elite Tech Info, and started on October 3, 2023. [elite-tech.md]\n- # Elite Tech Info Inc \u2014 Software Developer\n\nTeja worked at Elite Tech Info Inc in McKinney, Texas as a Software Developer from October 2023 to May 2024. [elite-tech.md]\n- At Elite Tech Info, Teja customized ServiceNow portals and automated IT asset management workflows. [elite-tech.md]"
-    },
-    {
-      "question": "What programming languages and frameworks does Teja use?",
-      "expected_keyword": "python",
-      "has_keyword": true,
-      "sources_returned": [
-        "about-teja.md",
-        "technobot.md",
-        "elite-tech.md"
+      "keywords_found": [
+        "langchain",
+        "forecasting"
       ],
-      "cites_source_in_text": true,
-      "pass": true,
-      "answer": "Based on the documents:\n- His programming languages and frameworks include Python, JavaScript, React.js, Java, C#, .NET Core, Spring Boot, and SQL. [about-teja.md]\n- # Technobot LLC \u2014 AI Developer / Full Stack Developer\n\nTeja worked at Technobot LLC in Minnesota as an AI Developer and Full Stack Developer from May 2024 to April 2026. [technobot.md]\n- At Technobot, Teja built AI forecasting and vendor-selection features with OpenAI GPT and LangChain. [technobot.md]"
-    },
-    {
-      "question": "How many years of experience does Teja have?",
-      "expected_keyword": "4",
-      "has_keyword": true,
+      "keyword_accuracy": 1.0,
       "sources_returned": [
-        "about-teja.md",
         "technobot.md"
       ],
-      "cites_source_in_text": true,
+      "cites_expected_source_in_text": true,
+      "expected_source_returned": true,
+      "citation_correct": true,
       "pass": true,
-      "answer": "Based on the documents:\n- Teja is a software developer with 4+ years of experience shipping production applications. [about-teja.md]\n- Teja holds a Master of Science in Information Technology Services Administration and Management from Concordia University, St. [about-teja.md]\n- # Technobot LLC \u2014 AI Developer / Full Stack Developer\n\nTeja worked at Technobot LLC in Minnesota as an AI Developer and Full Stack Developer from May 2024 to April 2026. [technobot.md]"
+      "answer": "Based on the documents:\n- # Technobot LLC \u2014 AI Developer / Full Stack Developer\n\nKrishnateja worked at Technobot LLC in Minnesota as an AI Developer and Full Stack Developer from May 2024 to April 2026. [technobot.md]\n- His work at Technobot combined full-stack development with applied AI: React and .NET Core on the frontend and backend, OpenAI GPT and LangChain for the AI features, and Azure for cloud and identity. [technobot.md]\n- At Technobot, Krishnateja built AI forecasting and vendor-selection features with OpenAI GPT and LangChain. [technobot.md]"
+    },
+    {
+      "id": "elite-build",
+      "question": "What did Krishnateja build at Elite Tech Info?",
+      "expected_answer": "Customized ServiceNow portals and automated IT asset management workflows",
+      "expected_source": "elite-tech.md",
+      "expected_keywords": [
+        "servicenow",
+        "portals"
+      ],
+      "keywords_found": [
+        "servicenow",
+        "portals"
+      ],
+      "keyword_accuracy": 1.0,
+      "sources_returned": [
+        "elite-tech.md"
+      ],
+      "cites_expected_source_in_text": true,
+      "expected_source_returned": true,
+      "citation_correct": true,
+      "pass": true,
+      "answer": "Based on the documents:\n- # Elite Tech Info Inc \u2014 Software Developer\n\nKrishnateja worked at Elite Tech Info Inc in McKinney, Texas as a Software Developer from October 2023 to May 2024. [elite-tech.md]\n- At Elite Tech Info, Krishnateja customized ServiceNow portals and automated IT asset management workflows. [elite-tech.md]\n- Krishnateja reported to Satyam B at Elite Tech Info, and started on October 3, 2023. [elite-tech.md]"
+    },
+    {
+      "id": "languages",
+      "question": "What programming languages and frameworks does Krishnateja use?",
+      "expected_answer": "Python, JavaScript, React.js, Java, C#, .NET Core, Spring Boot, and SQL",
+      "expected_source": "about-teja.md",
+      "expected_keywords": [
+        "python",
+        "react"
+      ],
+      "keywords_found": [
+        "python",
+        "react"
+      ],
+      "keyword_accuracy": 1.0,
+      "sources_returned": [
+        "about-teja.md"
+      ],
+      "cites_expected_source_in_text": true,
+      "expected_source_returned": true,
+      "citation_correct": true,
+      "pass": true,
+      "answer": "Based on the documents:\n- His programming languages and frameworks include Python, JavaScript, React.js, Java, C#, .NET Core, Spring Boot, and SQL. [about-teja.md]"
+    },
+    {
+      "id": "experience",
+      "question": "How many years of experience does Krishnateja have?",
+      "expected_answer": "4+ years of experience",
+      "expected_source": "about-teja.md",
+      "expected_keywords": [
+        "4+"
+      ],
+      "keywords_found": [
+        "4+"
+      ],
+      "keyword_accuracy": 1.0,
+      "sources_returned": [
+        "about-teja.md"
+      ],
+      "cites_expected_source_in_text": true,
+      "expected_source_returned": true,
+      "citation_correct": true,
+      "pass": true,
+      "answer": "Based on the documents:\n- Krishnateja is a software developer with 4+ years of experience shipping production applications. [about-teja.md]"
+    },
+    {
+      "id": "technobot-dates",
+      "question": "When did Krishnateja work at Technobot?",
+      "expected_answer": "May 2024 to April 2026",
+      "expected_source": "technobot.md",
+      "expected_keywords": [
+        "may 2024",
+        "april 2026"
+      ],
+      "keywords_found": [
+        "may 2024",
+        "april 2026"
+      ],
+      "keyword_accuracy": 1.0,
+      "sources_returned": [
+        "technobot.md"
+      ],
+      "cites_expected_source_in_text": true,
+      "expected_source_returned": true,
+      "citation_correct": true,
+      "pass": true,
+      "answer": "Based on the documents:\n- # Technobot LLC \u2014 AI Developer / Full Stack Developer\n\nKrishnateja worked at Technobot LLC in Minnesota as an AI Developer and Full Stack Developer from May 2024 to April 2026. [technobot.md]\n- His work at Technobot combined full-stack development with applied AI: React and .NET Core on the frontend and backend, OpenAI GPT and LangChain for the AI features, and Azure for cloud and identity. [technobot.md]\n- At Technobot, Krishnateja built AI forecasting and vendor-selection features with OpenAI GPT and LangChain. [technobot.md]"
+    },
+    {
+      "id": "elite-manager",
+      "question": "Who did Krishnateja report to at Elite Tech Info?",
+      "expected_answer": "Satyam B",
+      "expected_source": "elite-tech.md",
+      "expected_keywords": [
+        "satyam"
+      ],
+      "keywords_found": [
+        "satyam"
+      ],
+      "keyword_accuracy": 1.0,
+      "sources_returned": [
+        "elite-tech.md"
+      ],
+      "cites_expected_source_in_text": true,
+      "expected_source_returned": true,
+      "citation_correct": true,
+      "pass": true,
+      "answer": "Based on the documents:\n- Krishnateja reported to Satyam B at Elite Tech Info, and started on October 3, 2023. [elite-tech.md]\n- # Elite Tech Info Inc \u2014 Software Developer\n\nKrishnateja worked at Elite Tech Info Inc in McKinney, Texas as a Software Developer from October 2023 to May 2024. [elite-tech.md]\n- At Elite Tech Info, Krishnateja customized ServiceNow portals and automated IT asset management workflows. [elite-tech.md]"
+    },
+    {
+      "id": "technobot-databases",
+      "question": "What databases did Krishnateja work with at Technobot?",
+      "expected_answer": "SQL Server and MongoDB",
+      "expected_source": "technobot.md",
+      "expected_keywords": [
+        "sql server",
+        "mongodb"
+      ],
+      "keywords_found": [
+        "sql server",
+        "mongodb"
+      ],
+      "keyword_accuracy": 1.0,
+      "sources_returned": [
+        "technobot.md"
+      ],
+      "cites_expected_source_in_text": true,
+      "expected_source_returned": true,
+      "citation_correct": true,
+      "pass": true,
+      "answer": "Based on the documents:\n- He designed role-based access control using Azure AD, and worked with SQL Server and MongoDB. [technobot.md]\n- # Technobot LLC \u2014 AI Developer / Full Stack Developer\n\nKrishnateja worked at Technobot LLC in Minnesota as an AI Developer and Full Stack Developer from May 2024 to April 2026. [technobot.md]"
     }
   ]
 }
